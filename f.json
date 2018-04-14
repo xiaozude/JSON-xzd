@@ -1,0 +1,14 @@
+{
+  "Version": "1.0.0",
+  "Image": {
+    "Title": "Hello World!",
+    "State": false,
+    "Url": null,
+    "IDs": [
+      11e2,
+      -234
+    ],
+    "Date": null,
+    "Data": null
+  }
+}

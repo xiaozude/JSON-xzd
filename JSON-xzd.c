@@ -7,8 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define Test_Pointer(pointer) ((pointer == NULL) ? exit(EXIT_FAILURE) : (void)0)
-
 /* JSON读取器 */
 void Reader_JSON(char filename[], Table * table)
 {
@@ -16,7 +14,7 @@ void Reader_JSON(char filename[], Table * table)
 
 	FILE * file = NULL;
 	fopen_s(&file, filename, "r");
-	Test_Pointer(file);
+	Processor_JSON(file == NULL, JSON_Error_File);
 
 	int length = 0;
 	while (fgetc(file) != EOF)
@@ -24,7 +22,7 @@ void Reader_JSON(char filename[], Table * table)
 		length++;
 	}
 	table->text = (char *)malloc(sizeof(char) * (length + 1));
-	Test_Pointer(table->text);
+	Processor_JSON(table->text == NULL, JSON_Error_System);
 
 	rewind(file);
 	fread(table->text, length, 1, file);
@@ -39,26 +37,29 @@ void Optimizer_JSON(Table * table)
 
 	char * text = table->text;
 	char * temp = (char *)malloc(sizeof(char) * strlen(text));
-	Test_Pointer(temp);
+	Processor_JSON(temp == NULL, JSON_Error_System);
 
 	int index = -1;
 	int length = 0;
 	while (text[++index] != '\0')
 	{
-		if (text[index] == '{' || text[index] == '}'
-			|| text[index] == '[' || text[index] == ']'
-			|| text[index] == ':' || text[index] == ','
-			|| isalnum(text[index]) || text[index] == '.'
-			|| text[index] == '+' || text[index] == '-')
+		if (iscntrl(text[index]))
+		{
+			continue;
+		}
+		else if (isalnum(text[index]))
 		{
 			temp[length++] = text[index];
 		}
-		else if (text[index] == '"')
+		else if (ispunct(text[index]))
 		{
-			do
+			if (text[index] == '"')
 			{
-				temp[length++] = text[index++];
-			} while (text[index] != '"');
+				do
+				{
+					temp[length++] = text[index++];
+				} while (text[index] != '"');
+			}
 			temp[length++] = text[index];
 		}
 	}
@@ -76,8 +77,8 @@ void Scanner_JSON(Table * table)
 
 	char * text = table->text;
 	table->sign = (enum JSON_Sign *)malloc(sizeof(enum JSON_Sign) * strlen(text));
-	Test_Pointer(table->sign);
-	
+	Processor_JSON(table->sign == NULL, JSON_Error_System);
+
 	enum JSON_Sign * sign = table->sign;
 	int index = -1;
 	while (text[++index] != '\0')
@@ -134,7 +135,7 @@ int Parser_JSON(Table table, Tree * tree, int begin_index, int end_index)
 	char * text = table.text;
 	enum JSON_Sign * sign = table.sign;
 	*tree = (Tree)malloc(sizeof(struct Syntax_Tree));
-	Test_Pointer(*tree);
+	Processor_JSON(*tree == NULL, JSON_Error_System);
 	(*tree)->name[0] = '\0';
 	(*tree)->value = NULL;
 	(*tree)->child = NULL;
@@ -168,7 +169,7 @@ int Parser_JSON(Table table, Tree * tree, int begin_index, int end_index)
 			else
 			{
 				(*tree)->value = (char *)malloc(sizeof(char) * 5);
-				Test_Pointer((*tree)->value);
+				Processor_JSON((*tree)->value == NULL, JSON_Error_System);
 				strcpy_s((*tree)->value, 5, "null");
 			}
 			break;
@@ -193,7 +194,7 @@ int Parser_JSON(Table table, Tree * tree, int begin_index, int end_index)
 			else
 			{
 				(*tree)->value = (char *)malloc(sizeof(char) * 5);
-				Test_Pointer((*tree)->value);
+				Processor_JSON((*tree)->value == NULL, JSON_Error_System);
 				strcpy_s((*tree)->value, 5, "null");
 			}
 			break;
@@ -213,7 +214,7 @@ int Parser_JSON(Table table, Tree * tree, int begin_index, int end_index)
 			while (sign[index + ++length] == JSON_Sign_ValueText)
 				;
 			(*tree)->value = (char *)malloc(sizeof(char) * (length + 1));
-			Test_Pointer((*tree)->value);
+			Processor_JSON((*tree)->value == NULL, JSON_Error_System);
 			while (i < length)
 			{
 				(*tree)->value[i++] = text[index++];
@@ -256,12 +257,14 @@ void Generator_JSON(Tree tree, JSON * json)
 		{
 			type = JSON_Type_String;
 			value.string = (char *)malloc(sizeof(char) * (strlen(tree->value) + 1));
+			Processor_JSON(value.string == NULL, JSON_Error_System);
 			strcpy_s(value.string, strlen(tree->value) + 1, tree->value);
 		}
 		else
 		{
 			type = JSON_Type_Number;
 			value.number = (char *)malloc(sizeof(char) * (strlen(tree->value) + 1));
+			Processor_JSON(value.number == NULL, JSON_Error_System);
 			strcpy_s(value.number, strlen(tree->value) + 1, tree->value);
 		}
 	}
@@ -295,7 +298,7 @@ JSON Constructor_JSON(char name[], enum JSON_Type type, union JSON_Value value, 
 		|| type == JSON_Type_String || type == JSON_Type_Array || type == JSON_Type_Object));
 
 	JSON json = (JSON)malloc(sizeof(struct Data_List));
-	Test_Pointer(json);
+	Processor_JSON(strlen(name) >= MAX_NAME_LENGTH, JSON_Error_Semantic);
 	strcpy_s(json->name, strlen(name) + 1, name);
 	json->type = type;
 	json->value = value;
@@ -481,7 +484,38 @@ void Encoder_JSON(JSON json, char filename[])
 
 	FILE * file;
 	fopen_s(&file, filename, "w");
-	Test_Pointer(file);
+	Processor_JSON(file == NULL, JSON_Error_File);
 	Encoder(json, file, 0);
 	fclose(file);
+}
+
+/* JSON处理器 */
+void Processor_JSON(_Bool state, enum JSON_Error error)
+{
+	if (!state)
+	{
+		return;
+	}
+
+	switch (error)
+	{
+	case JSON_Error_System:
+		printf("内存分配失败！\n");
+		break;
+	case JSON_Error_File:
+		printf("文件打开失败！\n");
+		break;
+	case JSON_Error_Syntax:
+		printf("语法有错误！\n");
+		break;
+	case JSON_Error_Semantic:
+		printf("键值不匹配！\n");
+		break;
+	case JSON_Error_Unknown:
+		printf("出现未知错误！\n");
+		break;
+	default:
+		break;
+	}
+	exit(EXIT_FAILURE);
 }

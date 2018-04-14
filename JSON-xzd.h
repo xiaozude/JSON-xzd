@@ -17,6 +17,16 @@ enum JSON_Sign
 	JSON_Sign_ObjectEnd //右大括号
 };
 
+/* 错误 */
+enum JSON_Error
+{
+	JSON_Error_System, //系统错误
+	JSON_Error_File, //文件错误
+	JSON_Error_Syntax, //语法错误
+	JSON_Error_Semantic, //语义错误
+	JSON_Error_Unknown //未知错误
+};
+
 /* 类型 */
 enum JSON_Type
 {
@@ -89,3 +99,6 @@ void Printer_JSON(JSON json, int tab);
 
 /* JSON编码器 */
 void Encoder_JSON(JSON json, char filename[]);
+
+/* JSON处理器 */
+void Processor_JSON(_Bool state, enum JSON_Error error);
